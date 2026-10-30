@@ -1,0 +1,380 @@
+import time
+import numpy as np
+import keyboard
+from multiprocessing import Process
+
+ta = time.time()
+
+""" Variable Definitions
+
+
+
+Mario hp = 10,3,1
+
+Chd? = 0,1 (bool)
+
+CN = 0,1,2,3,4
+
+RG = 0,1,2
+
+Bowser hp = 0,...,99
+(-2 = SF or jump x2, -7 = SS, -6 = jump x2 with danger, +30 = H)
+
+Turn = 1,2,3,>3
+
+H count = 0,1,2,3
+
+Turns since H = 0,>0
+(bool with F = 0, T = >0)
+
+buffed? = 0,1 (bool)
+
+Turns since Star Rod = 0,1,2,3,>3
+
+Turns since W = 1,2,3,4,5,>5
+
+(Tatsächlich kann nicht zweimal hintereinander "C" oder "BS" kommen, gemischt aber schon)
+
+Turns since C = 1,>0
+
+Turns sind BS = 1,>0
+"""
+
+"""Action Definition for Mario
+T1: Ch, CN
+T2: Ch
+T3: Ch
+T4: Repel
+T5: Ch
+T6: Ch
+T7: Repel
+T8: Ch
+T9: Beam
+T10: Bounce x3, SF
+T11: SS, SF
+T12: SS, SF0
+T13: SS, SF
+if S, use Beam
+"""
+
+"""Action Definition for Bowser
+if 10*(Mario hp) - (Bowser hp)*100/99 >= 25:
+    if H count < 3 and Turns since H > 1:
+        [[0.75, "H"], [0.25, "no H"]]
+
+if Turn > 0 and buffed == False:
+    if Turns since Star Rod = 3:
+        [[0.15, "S"], [0.85, "no S"]]
+    
+    if Turns since Star Rod > 3:
+        [[0.75, "S"], [0.25, "no S"]]
+    
+if Turns since W < 3:
+    [1, "Normal Move"]
+
+if Turns < 3:
+    [1, "Normal Move"]
+
+if Turns since W > 5:
+    [2/3, "W", 1/3, "L"]
+
+if Chd == True:
+    [[0.75, "W"], [0.25, "No W"]]
+
+[[0.27*2/3, "W"],[0.27 * 1/3, "L"], [0.73, "Normal Move"]]
+
+
+
+if Normal Move:
+    if Turns since C > 1 and Turns since BS > 1:
+        [[0.25, "BS"],[0.25, "C"],[0.5,"F"]]]
+    if Turns since BS > 1:
+        [[1/3, "C"],[2/3, "F"]]
+    if Turns since C > 1:
+        [[0.25, "BS"],[0.75, "F"]]
+"""
+
+def Normal(z,S,P):
+    if z[12] > 1:
+        S.append([P*0.25,"BS"])
+        P = P*(0.75)
+    if z[11] > 1:
+        S.append([P*1/3,"C"])
+        P = P*(2/3)
+    S.append([P,"F"])
+    return(S)
+    
+
+def Action_Bowser(z): #z = Stats
+    S = []
+    P = 1
+    if 10*z[0] - (100/99)*z[4] >= 25:
+        S.append([0.75, "H"])
+        P = P*(0.25)
+    if z[8] == False:
+        if z[9] == 3:
+            S.append([P*0.15,"S"])
+            P = P*(0.85)
+        if z[9] > 3:
+            S.append([P*0.75,"S"])
+            P = P*(0.25)
+    if z[5] < 3:
+        return([[1,"F"]])
+    if z[10] < 3:
+        return(Normal(z,S,P))
+    if z[10] > 5:
+        S.append([P*2/3,"W"])
+        S.append([P*1/3,"F"])
+        return(S)
+    if z[1]:
+        S.append([P*2/3,"W"])
+        S.append([P*1/3,"F"])
+        return(S)
+    S.append([P*0.18,"W"])
+    if z[15] or z[5] > 8:
+        p = P*0.09
+        P = P*(0.73)
+        if z[12] > 1:
+            S.append([P*0.25,"BS"])
+            P = P*(0.75)
+        if z[11] > 1:
+            S.append([P*1/3,"C"])
+            P = P*(2/3)
+        S.append([P+p,"F"])
+    else:
+        S.append([P*0.82,"F"])
+    return(S)
+
+def Action_Mario(z):
+    if z[5] in (1,2,5,6,8):
+        return([[1,"Ch"]])
+    elif z[5] == 3:
+        return([[1, "JJ"]])
+    elif z[5] in (4,7):
+        return([[1, "RG"]])
+    elif z[5] > 8 and z[8]:
+        return([[1, "Beam"]])
+    elif z[5] == 10:
+        S = []
+        S.append([0.129,"PB 5"])
+        S.append([0.377,"PB 4"])
+        S.append([0.494,"PB 3"])
+        return(S)
+    return([[1, "SS"]])
+
+def Action_Partner(z):
+    if z[5] == 1:
+        return([[1,"CNA"]])
+    if z[5] > 9:
+        return([[1,"SF"]])
+    return([[1,"DN"]])
+
+def Action_Inbetween(z):
+    S = []
+    if z[2] > 0:
+        S.append([0.5,"CN"])
+        S.append([0.5,"Hit"])
+        return(S)
+    if z[3]:
+        S.append([1, "No Hit"])
+        return(S)
+    if z[0] < 6:
+        S.append([0.7, "Hit"])
+        S.append([0.3, "No Hit"])
+        return(S)
+    S.append([1, "Hit"])
+    return(S)
+
+
+def Stat_Change(S,z):
+    z_new = [x for x in z]
+    Last_Action = S[-1][1]
+    
+    ### Mario Action Change
+    
+    if Last_Action == "Ch":
+        z_new[1] = True
+    elif Last_Action == "RG":
+        z_new[3] = 2
+    elif Last_Action == "Beam":
+        z_new[8] = False
+    elif Last_Action == "PB 5":
+        z_new[4] = 0
+    elif Last_Action == "PB 4":
+        z_new[4] += -66
+        z_new[1] = False
+    elif Last_Action == "PB 3":
+        z_new[4] += -51
+        z_new[1] = False
+    elif Last_Action == "SS":
+        z_new[4] += -7
+    
+    ### Partner Action Change
+    
+    elif Last_Action == "CNA":
+        z_new[2] = 4
+    elif Last_Action == "SF":
+        if z_new[8] == 0:
+            z_new[4] += -2
+    
+    ### Bowser Action State (Inbetween during sections)
+    
+    Former_Action = S[-2][1]
+    
+    
+    if Former_Action == "H":
+        z_new[4] += 30
+        z_new[6] += -1
+        z_new[7] = 0
+        if z_new[6] < 2:
+            z_new[15] = False
+        
+    elif Former_Action == "S":
+        z_new[8] = True
+        z_new[9] = 0
+        
+    elif Former_Action == "W":
+        z_new[10] = 0
+        z_new[16] = True
+        if Last_Action == "Hit":
+            z_new[0] += -6
+            z_new[1] = False
+            if z_new[5] < 10:
+                z_new[15] = False
+    
+    
+    elif Former_Action == "BS":
+        z_new[12] = 0
+        if Last_Action == "Hit":
+            if z_new[8]:
+                z_new[0] += -15
+            else:
+                z_new[0] += -7
+    
+    elif Former_Action == "C":
+        z_new[11] = 0
+        if Last_Action == "Hit":
+            if z_new[8]:
+                z_new[0] += -15
+            else:
+                z_new[0] += -7
+    
+    elif Former_Action == "F":
+        if Last_Action == "Hit":
+            if z_new[8]:
+                z_new[0] += -19
+            else:
+                z_new[0] += -9
+    
+    ## update Turn ##
+    if z_new[5] > 18:
+        z_new[15] = False
+    if z_new[14] == 2:
+        z_new[14] = -1
+        if z_new[0] < 1:
+            z_new[0] = 10
+            z_new[13] += 1
+        for i in (5,7,9,10,11,12):
+            z_new[i] += 1
+        if z_new[4] > 99:
+            z_new[4] = 99
+        for i in (2,3):
+            z_new[i] = max(0,z_new[i]-1)
+    if z_new[13] > 5:
+        z_new[15] = False
+    
+    if z_new[14] < 2:
+        z_new[14] += 1
+    
+    
+        
+    return(z_new)
+
+def Win_P(S): # Die Wahrscheinlichkeiten stehen hier drinnen, d.h. man kann P mit einem geeigneten Faktor multiplizieren um doe 10^{-10} werte wegzubekommen.
+    P = 100
+    for x in range(2,len(S)):
+        P = P*S[x][0]
+    return(P)
+
+
+
+
+
+def Rek(S,z,P,q):
+    global ta
+    if keyboard.is_pressed("F7"):
+        print(q)
+        print(P)
+        time.sleep(1)
+    if q > P[3]:
+        print(100*P[3])
+        print(time.time()-ta)
+        print("")
+        P[3] += 0.001
+    k = 60
+    if not z[15]:
+        r = S[-1][0]
+        q += r
+        P[1] += r
+        return(P,q)
+    if z[4] < 0:
+        r = S[-1][0]
+        q += r
+        P[0] += r
+        return(P,q)
+    if len(S) > k:
+        r = S[-1][0]
+        q += r
+        P[2] += r
+        return(P,q)
+    Q = [s for s in S]
+    if z[14] == 0:
+        R = Action_Mario(z)
+        for x in R:
+            Q.append([x[0]*Q[-1][0],x[1]])
+            P,q = Rek(Q,Stat_Change(Q,z),P,q)
+            Q.pop(-1)
+        
+    elif z[14] == 1:
+        R = Action_Partner(z)
+        for x in R:
+            Q.append([x[0]*Q[-1][0],x[1]])
+            P,q = Rek(Q,Stat_Change(Q,z),P,q)
+            Q.pop(-1)
+            
+    elif z[14] == 2:
+        R_1 = Action_Bowser(z)
+        R_2 = Action_Inbetween(z)
+        for x in R_1:
+            Q.append([x[0]*Q[-1][0],x[1]])
+            for y in R_2:
+                Q.append([y[0]*Q[-1][0],y[1]])
+                P,q = Rek(Q,Stat_Change(Q,z),P,q)
+                Q.pop(-1)
+            Q.pop(-1)
+    return(P,q)
+
+def Proj(S,z,P,q,i):
+    print(Rek(S,z,P,q),5-i)
+    return()
+
+z_0 = [[10,True,4,0,76,1,0,0,True,0,0,3,3,y,2,True,False] for y in range(2)]
+S = [[[],[]],[1,"Ch"],[1,"CNA"]] 
+Proj(S,z_0[0],[0,0,0,0.001],0,0)
+
+"""if __name__ == '__main__':
+    z_0 = [[10,True,4,0,76,1,0,0,True,0,0,3,3,y,2,True,False] for y in range(2)]
+
+
+    S = [[[],[]],[1,"Ch"],[1,"CNA"]] 
+    N = [Process(target = Proj, args = (S,z_0[i],[0,0,0,0.001],0,i)) for i in range(1)]
+    
+    for x in N:
+        x.start()
+    
+    for x in N:
+        x.join()
+"""
+
+
+
