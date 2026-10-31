@@ -121,7 +121,9 @@ def Action_Bowser(z): #z = Stats
     if z[5] < 3:
         return([[1,"F"]])
     if z[10] < 3:
-        return(Normal(z,S,P))
+        if z[15] or z[5] > 8:
+            return(Normal(z,S,P))
+        return([P,"F"])
     if z[10] > 5:
         S.append([P*2/3,"W"])
         S.append([P*1/3,"F"])
@@ -146,21 +148,63 @@ def Action_Bowser(z): #z = Stats
     return(S)
 
 def Action_Mario(z):
-    if z[5] in (1,2,5,6,8):
-        return([[1,"Ch"]])
-    elif z[5] == 3:
-        return([[1, "JJ"]])
-    elif z[5] in (4,7):
-        return([[1, "RG"]])
-    elif z[5] > 8 and z[8]:
-        return([[1, "Beam"]])
-    elif z[5] == 10:
-        S = []
-        S.append([0.129,"PB 5"])
-        S.append([0.377,"PB 4"])
-        S.append([0.494,"PB 3"])
-        return(S)
-    return([[1, "SS"]])
+    if z[17] == 1: #0 LS Fight
+        if z[5] in (1,2,5,8):
+            return([[1, "Ch"]])
+        elif z[5] == 3:
+            return([[1, "JJ"]])
+        elif z[5] in (4,7):
+            return([[1, "RG"]])
+        elif z[5] == 6:
+            return([[1, "Beam"]])
+        elif z[5] == 9:
+            S = []
+            S.append([0.002,"PB 6"])
+            S.append([0.127,"PB 5"])
+            S.append([0.377,"PB 4"])
+            S.append([0.494,"PB 3"])
+            return(S)
+        elif z[5] > 6 and z[8]:
+            return([[1, "Beam"]])
+        return([[1, "SS"]])
+    elif z[17] == 2: #Wave Delay AND >= 1 LS Fight
+        if z[5] in (1,2,5,6,9):
+            return([[1,"Ch"]])
+        elif z[5] == 3:
+            return([[1, "JJ"]])
+        elif z[5] in (4,8):
+            return([[1, "RG"]])
+        elif z[5] == 7:
+            return([[1, "Beam"]])
+        elif z[5] == 10:
+            S = []
+            S.append([0.129,"PB 5"])
+            S.append([0.377,"PB 4"])
+            S.append([0.494,"PB 3"])
+            return(S)
+        elif z[5] > 7 and z[8]:
+            return([[1, "Beam"]])
+        return([[1, "SS"]])
+    
+    
+    
+    else: # >= 1 LS Fight, no Wave Delay
+        if z[5] in (1,2,5,6,8):
+            return([[1,"Ch"]])
+        elif z[5] == 3:
+            return([[1, "JJ"]])
+        elif z[5] in (4,7):
+            return([[1, "RG"]])
+        elif z[5] > 8 and z[8]:
+            return([[1, "Beam"]])
+        elif z[5] == 10:
+            S = []
+            S.append([0.129,"PB 5"])
+            S.append([0.377,"PB 4"])
+            S.append([0.494,"PB 3"])
+            return(S)
+        return([[1, "SS"]])
+    
 
 def Action_Partner(z):
     if z[5] == 1:
@@ -171,12 +215,12 @@ def Action_Partner(z):
 
 def Action_Inbetween(z):
     S = []
-    if z[2] > 0:
+    if z[3] > 0:
+        S.append([1, "No Hit"])
+        return(S)
+    if z[2] > 0: #the case doesnt apply here, but Cloud Nine and Closecall can stack (CN or (CC or No CC))
         S.append([0.5,"CN"])
         S.append([0.5,"Hit"])
-        return(S)
-    if z[3]:
-        S.append([1, "No Hit"])
         return(S)
     if z[0] < 6:
         S.append([0.7, "Hit"])
@@ -198,13 +242,25 @@ def Stat_Change(S,z):
         z_new[3] = 2
     elif Last_Action == "Beam":
         z_new[8] = False
+    elif Last_Action == "PB 6":
+        z_new[4] += -75
     elif Last_Action == "PB 5":
-        z_new[4] = 0
+        if z[17]:
+            z_new[4] += -65
+        else:
+            z_new[4] += -80
+        z_new[1] = False
     elif Last_Action == "PB 4":
-        z_new[4] += -66
+        if z[17]:
+            z_new[4] += -54
+        else:
+            z_new[4] += -66
         z_new[1] = False
     elif Last_Action == "PB 3":
-        z_new[4] += -51
+        if z[17]:
+            z_new[4] += -42
+        else:
+            z_new[4] += -51
         z_new[1] = False
     elif Last_Action == "SS":
         z_new[4] += -7
@@ -267,6 +323,7 @@ def Stat_Change(S,z):
                 z_new[0] += -9
     
     ## update Turn ##
+            
     if z_new[5] > 18:
         z_new[15] = False
     if z_new[14] == 2:
@@ -282,6 +339,11 @@ def Stat_Change(S,z):
             z_new[i] = max(0,z_new[i]-1)
     if z_new[13] > 5:
         z_new[15] = False
+    if z[5] == 4:
+        if Former_Action != "W": #First Wave Delay
+            z_new[17] = 2
+        if z_new[13] == 5: #0 LS after Cloud Nine; First Wave Delay doesnt matter here
+            z_new[17] = 1
     
     if z_new[14] < 2:
         z_new[14] += 1
@@ -290,18 +352,24 @@ def Stat_Change(S,z):
         
     return(z_new)
 
-def Win_P(S): # Die Wahrscheinlichkeiten stehen hier drinnen, d.h. man kann P mit einem geeigneten Faktor multiplizieren um doe 10^{-10} werte wegzubekommen.
+def Win_P(S): # Die Wahrscheinlichkeiten stehen hier drinnen, d.h. man kann P mit einem geeigneten Faktor multiplizieren um die 10^{-10} werte wegzubekommen.
     P = 100
     for x in range(2,len(S)):
         P = P*S[x][0]
     return(P)
 
 
-
-
+WINCOUNT = [0 for _ in range(30)]
+DEATHCOUNT = [0 for _ in range(30)]
+TOLONGCOUNT = [0 for _ in range(30)]
+RESULT = 0
 
 def Rek(S,z,P,q):
     global ta
+    global WINCOUNT
+    global DEATHCOUNT
+    global TOLONGCOUNT
+    global RESULT
     if keyboard.is_pressed("F7"):
         print(q)
         print(P)
@@ -310,19 +378,26 @@ def Rek(S,z,P,q):
         print(100*P[3])
         print(time.time()-ta)
         print("")
-        P[3] += 0.001
+        P[3] += 0.01
     k = 60
     if not z[15]:
+        DEATHCOUNT[z[5]] += 1
         r = S[-1][0]
+        
+        if z[5] in [5,7]:
+            RESULT += r
         q += r
         P[1] += r
         return(P,q)
     if z[4] < 0:
+        
+        WINCOUNT[z[5]] += 1
         r = S[-1][0]
         q += r
         P[0] += r
         return(P,q)
     if len(S) > k:
+        TOLONGCOUNT[z[5]] += 1
         r = S[-1][0]
         q += r
         P[2] += r
@@ -358,23 +433,25 @@ def Proj(S,z,P,q,i):
     print(Rek(S,z,P,q),5-i)
     return()
 
-z_0 = [[10,True,4,0,76,1,0,0,True,0,0,3,3,y,2,True,False] for y in range(2)]
+LS = 5
+z_0 = [10,True,4,0,76,1,0,0,True,0,0,3,3,5-LS,2,True,False,0]
 S = [[[],[]],[1,"Ch"],[1,"CNA"]] 
-Proj(S,z_0[0],[0,0,0,0.001],0,0)
-
+Proj(S,z_0,[0,0,0,0.01],0,z_0[13])
+for i in range(30):
+    print([i,WINCOUNT[i],DEATHCOUNT[i],TOLONGCOUNT[i]])
 """if __name__ == '__main__':
-    z_0 = [[10,True,4,0,76,1,0,0,True,0,0,3,3,y,2,True,False] for y in range(2)]
+    z_0 = [[10,True,4,0,76,1,0,0,True,0,0,3,3,y,2,True,False] for y in range(4)]
 
 
     S = [[[],[]],[1,"Ch"],[1,"CNA"]] 
-    N = [Process(target = Proj, args = (S,z_0[i],[0,0,0,0.001],0,i)) for i in range(1)]
+    N = [Process(target = Proj, args = (S,z_0[i],[0,0,0,0.1],0,i)) for i in range(4)]
     
     for x in N:
         x.start()
     
     for x in N:
         x.join()
+
+
 """
-
-
 
