@@ -1,0 +1,612 @@
+#include <stdio.h>
+#include <stdbool.h>
+
+
+double P[4] = {0, 0, 0, 0.01};
+double q = 0;
+double Chances[3][30] = {{0}};
+int k = 40;
+
+int Mario[5][10] = {{7,7,8,9,7,7,9,7,14,0},{7,7,8,9,7,7,14,9,7,0},{7,7,8,9,7,14,9,7,0,0},{7,7,8,9,7,7,14,9,7,14},{7,7,8,9,7,14,9,7,14,0}};
+
+double Probability[5][3]= {{0}};
+
+
+
+
+
+
+int Action_Bowser(double A[6][2],int z[18]){
+    int LengthA = -1;
+
+    double Prob = 1;
+    // Heal?
+    if(10*z[0] - (100.0/99.0)*z[4] >= 25){
+        LengthA += 1;
+        A[LengthA][1] = 1;
+        A[LengthA][0] = Prob*0.75;
+        Prob *= 0.25;
+    }
+    // Shield?
+    if (z[8] == 0){
+        // Turn 3 Shield?
+        if (z[9] == 3){
+            LengthA += 1;
+            A[LengthA][1] = 2;
+            A[LengthA][0] = Prob*0.15;
+            Prob *= 0.85;
+        }
+        else{
+            // Turn >3 Shield?
+            if(z[9] > 3){
+                LengthA += 1;
+            A[LengthA][1] = 2;
+            A[LengthA][0] = Prob*0.75;
+            Prob *= 0.25;
+            }
+        }
+    }
+    // Turn < 3?
+    if (z[5] < 3){
+        LengthA += 1;
+        A[LengthA][1] = 3;
+        A[LengthA][0] = 1;
+        return(LengthA);
+    }
+    // Pre Wave
+    if(z[10] < 3){
+        if(z[16] == 1 || z[5]> 5){
+            if(z[12] > 1){
+                LengthA += 1;
+                A[LengthA][1] = 6;
+                A[LengthA][0] = Prob*0.25;
+                Prob *= 0.75;
+            }
+            if(z[11] > 1){
+                LengthA += 1;
+                A[LengthA][1] = 5;
+                A[LengthA][0] = Prob*(1.0/3.0);
+                Prob *= 2.0/3.0;
+            }
+            LengthA += 1;
+            A[LengthA][1] = 3;
+            A[LengthA][0] = Prob;
+            return LengthA;
+        }
+        else{
+            LengthA += 1;
+            A[LengthA][1] = 3;
+            A[LengthA][0] = 1;
+            return LengthA;
+        }
+    }
+
+    // Long Wave Delay
+    if(z[10]> 5){
+        LengthA += 2;
+        A[LengthA-1][0] = Prob*(2.0/3.0);
+        A[LengthA-1][1] = 4;
+        A[LengthA][0] = Prob*(1.0/3.0);
+        A[LengthA][1] = 3;
+        return LengthA;
+    }
+    // Charged Wave priority
+    if(z[1] == 1){
+        LengthA += 1;
+        A[LengthA][0] = Prob*0.795;
+        A[LengthA][1] = 4;
+        Prob *= 0.25;
+    }
+    else{
+        LengthA += 1;
+        A[LengthA][0] = Prob*0.18;
+        A[LengthA][1] = 4;
+    }
+    if(z[16] == 1 || z[5]> 8){
+            double p = Prob*0.09;
+            Prob *= 0.73;
+            if(z[12] > 1){
+                LengthA += 1;
+                A[LengthA][1] = 6;
+                A[LengthA][0] = Prob*0.25;
+                Prob *= 0.75;
+            }
+            if(z[11] > 1){
+                LengthA += 1;
+                A[LengthA][1] = 5;
+                A[LengthA][0] = Prob*(1.0/3.0);
+                Prob *= 2.0/3.0;
+            }
+            LengthA += 1;
+            A[LengthA][1] = 3;
+            A[LengthA][0] = Prob+p;
+            return LengthA;
+        }
+        else{
+            LengthA += 1;
+            A[LengthA][1] = 3;
+            A[LengthA][0] = Prob*0.82;
+            return LengthA;
+        }
+
+    }
+
+
+int Action_Mario(double A[6][2], int z[18]){
+        int LengthA = -1;
+
+        if(z[5] < 9){ //Early Turn = Def action
+            A[0][0] = 1;
+            A[0][1] = Mario[z[17]][z[5]-1];
+            return 0;
+        }
+        if(z[5] == 9 && z[17] != 2){ // Def action instead of 0 LS & no Turn 3 Shield
+            A[0][0] = 1;
+            A[0][1] = Mario[z[17]][z[5]-1];
+            return 0;
+        }
+        if((z[5] == 9 && z[17] == 2) || (z[5] == 10 && z[17] == 4)){ // PB für 0 LS
+                LengthA += 4;
+                A[LengthA-3][0] = 0.002;
+                A[LengthA-3][1] = 10;
+
+                A[LengthA-2][0] = 0.127;
+                A[LengthA-2][1] = 11;
+
+                A[LengthA-1][0] = 0.377;
+                A[LengthA-1][1] = 12;
+
+                A[LengthA][0] = 0.494;
+                A[LengthA][1] = 13;
+                return LengthA;
+        }
+        if(z[5] == 10 && z[17] < 2){ // PB für no T3 Shield, >0 LS Fight
+                LengthA += 3;
+
+                A[LengthA-2][0] = 0.129;
+                A[LengthA-2][1] = 11;
+
+                A[LengthA-1][0] = 0.377;
+                A[LengthA-1][1] = 12;
+
+                A[LengthA][0] = 0.494;
+                A[LengthA][1] = 13;
+                return LengthA;
+        }
+
+        if(z[5] == 10 && z[17] == 3){ // Peach Beam für T3 Shield + Wave Delay, >0 LS Fight
+                A[0][0] = 1;
+                A[0][1] = 14;
+                return 0;
+        }
+        if(z[5] == 11 && z[17] == 3){ // PB für T3 Shield + Wave Delay, >0 LS Fight
+                LengthA += 3;
+
+                A[LengthA-2][0] = 0.129;
+                A[LengthA-2][1] = 11;
+
+                A[LengthA-1][0] = 0.377;
+                A[LengthA-1][1] = 12;
+
+                A[LengthA][0] = 0.494;
+                A[LengthA][1] = 13;
+                return LengthA;
+        }
+
+        if (z[8] == 1){
+            A[0][0]= 1;
+            A[0][1] = 14;
+            return 0;
+        }
+        A[0][0] = 1;
+        A[0][1] = 15;
+        return 0;
+
+
+
+        }
+
+
+
+int Action_Partner(double A[6][2], int z[18]){
+    if(z[5]== 1){
+        A[0][0]= 1;
+        A[0][1] = 16;
+        return 0;
+    }
+    if(z[17] == 1){
+        if(z[5] > 8){
+            A[0][0] = 1;
+            A[0][1] = 17;
+            return 0;
+        }}
+    if(z[5]>9){
+        A[0][0] = 1;
+        A[0][1] = 17;
+        return 0;
+    }
+    A[0][0] = 1;
+    A[0][1] = 18;
+    return 0;
+    }
+
+
+int Action_Inbetween(double A[6][2], int z[18]){
+if(z[3] > 0){
+    A[0][0] = 1;
+    A[0][1] = 19;
+    return 0;
+}
+if(z[2] > 0){
+    A[0][0] = 0.5;
+    A[0][1] = 20;
+    A[1][0] = 0.5;
+    A[1][1] = 22;
+    return 1;
+}
+if(z[0]< 6){
+    A[0][0] = 0.7;
+    A[0][1]= 22;
+    A[1][0] = 0.3;
+    A[1][1] = 21;
+    return 1;
+}
+A[0][0] = 1;
+A[0][1] = 22;
+return 0;
+
+
+
+}
+
+
+void Stat_Change(int length ,double S[k+4][2],int z[], int y[]){
+
+                 for(int i = 0; i < 18; i++){
+                    y[i] = z[i];
+                 }
+                 int Last_Action = S[length][1];
+
+                 // Mario Action Change
+
+                 if(Last_Action == 7){
+                    y[1] = 1;
+                 }
+
+                 if(Last_Action == 9){
+                    y[3] = 2;
+                 }
+
+                 if(Last_Action == 14){
+                    y[8] = 0;
+                 }
+
+                 if(Last_Action == 10){
+                    y[4] += -75;
+                    y[1] = 0;
+                 }
+
+                 if(Last_Action == 11){
+                    if(z[17] == 1){
+                        y[4] += -65;
+                        y[1] = 0;
+                    }
+                    else{
+                        y[4] += -80;
+                        y[1] = 0;
+                    }
+                 }
+
+                 if(Last_Action == 12){
+                    if(z[17] == 1){
+                        y[4] += -54;
+                        y[1] = 0;
+                    }
+                    else{
+                        y[4] += -66;
+                        y[1] = 0;
+                    }
+                 }
+
+                 if(Last_Action == 13){
+                    if(z[17] == 1){
+                        y[4] += -42;
+                        y[1] = 0;
+                    }
+                    else{
+                        y[4] += -51;
+                        y[1] = 0;
+                    }
+                 }
+                 if(Last_Action == 15){
+                    y[4] += -7;
+                 }
+
+
+                 // Partner Action Change
+
+                 if(Last_Action == 16){
+                    y[2] = 4;
+                 }
+
+                 if(Last_Action == 17){
+                    if(y[8] == 0){
+                        y[4] += -2;
+                    }
+                 }
+
+                 // Bowser and Inbetween Action Changes
+
+
+                 int Former_Action = S[length-1][1];
+
+                 if(Former_Action == 1){
+                    y[4] += 30;
+                    y[6] += -1;
+                    y[7] = 0;
+                    if(y[6] > 1){
+                        y[15] = 0;
+                    }
+                 }
+
+                 if(Former_Action == 2){
+                    y[8] = 1;
+                    y[9] = 0;
+                 }
+
+                 if(Former_Action == 4){
+                    y[10] = 0;
+                    y[16] = 1;
+                    if(Last_Action == 22){
+                        y[0] += -6;
+                        y[1] = 0;
+                        if(y[5] < 10){
+                            y[15] = 0;
+                        }
+                    }
+                 }
+
+                if(Former_Action == 6){
+                    y[12] = 0;
+                    if(Last_Action == 22){
+                        if(y[8] == 1){
+                            y[0] += -15;
+                        }
+                        else{
+                            y[0] += -7;
+                        }
+                    }
+                }
+
+                if(Former_Action == 5){
+                    y[11] = 0;
+                    if(Last_Action == 22){
+                        if(y[8] == 1){
+                            y[0] += -15;
+                        }
+                        else{
+                            y[0] += -7;
+                        }
+                    }
+                }
+
+                if(Former_Action == 3){
+                    if(Last_Action == 22){
+                        if(y[8] == 1){
+                            y[0] += -19;
+                        }
+                        else{
+                            y[0] += -9;
+                        }
+                    }
+                }
+
+
+                // Update Turn
+
+                if(y[14] == 2){
+                    y[14] = -1;
+                    if(y[0] < 1){
+                        y[0] = 10;
+                        y[13] += 1;
+                    }
+                    int w[6] = {5,7,9,10,11,12};
+                    for(int i = 0; i < 6; i++){
+                        y[w[i]] += 1;
+                    }
+
+                    if(y[8] == 0){
+                        y[9] += 1;
+                    }
+
+                    if(z[17] == 2 && z[5] == 9 && z[8] == 0 && y[8] == 1){
+                        y[17] = 4;
+                    }
+                    if(z[17] == 1 && z[5] == 10 && z[8] == 0 && y[8] == 1){
+                        y[17] = 3;
+                    }
+
+
+                    if(y[4] > 99){
+                        y[4] = 99;
+                    }
+
+                    y[2] += -1;
+                    if(y[2] < 0){
+                        y[2] = 0;
+                    }
+                    y[3] += -1;
+                    if(y[3] < 0){
+                        y[3] = 0;
+                    }
+                }
+
+                if(y[13] > 5){
+                    y[15] = 0;
+                }
+
+                if(z[5] == 4 && z[14] == 2){
+                    if(Former_Action != 4){
+                        y[17] = 1;
+                    }
+                    if(z[13] == 5){
+                        y[17] = 2;
+                    }
+                }
+
+                if (y[14] < 2){
+                    y[14] += 1;
+                }
+
+                return;
+                }
+
+
+
+void Rek(int length, double S[k+4][2], int z[18]){
+
+        while(q > P[3]){
+            printf("%.2f\n",q);
+            P[3] += 0.01;
+        }
+
+        double r = 0;
+
+        if(z[15] == 0){
+            r = S[length][0];
+            q += r;
+            P[1] += r;
+            Chances[1][z[5]] += r;
+            return;
+        }
+
+        if(length > k-1){
+            r = S[length][0];
+            q += r;
+            P[2] += r;
+            Chances[2][z[5]] += r;
+            return;
+        }
+
+        if(z[4] < 1){
+            r = S[length][0];
+            q += r;
+            P[0] += r;
+            Chances[0][z[5]] += r;
+            return;
+        }
+
+        double A[6][2] = {{0}};
+
+
+        // Marios Turn
+
+        if(z[14] == 0){
+            int L = Action_Mario(A,z)+1;
+            for(int x = 0; x < L;x++){
+                S[length+1][0] = S[length][0]*A[x][0];
+                S[length+1][1] = A[x][1];
+                int y[18] = {0};
+                Stat_Change(length+1,S,z,y);
+                Rek(length+1,S,y);
+            }
+        }
+        else{ // Partners Turn
+
+            if(z[14] == 1){
+                int L = Action_Partner(A,z)+1;
+            for(int x = 0; x < L;x++){
+                S[length+1][0] = S[length][0]*A[x][0];
+                S[length+1][1] = A[x][1];
+                int y[18] = {0};
+                Stat_Change(length+1,S,z,y);
+                Rek(length+1,S,y);
+            }
+
+
+        }
+        else{ //Bowser + Inbetween Turn
+                double B[6][2] = {{0}};
+
+            if(z[14] == 2){
+                int L = Action_Bowser(A,z)+1;
+            for(int x = 0; x < L;x++){
+                S[length+1][0] = S[length][0]*A[x][0];
+                S[length+1][1] = A[x][1];
+                int M = Action_Inbetween(B,z)+1;
+                for(int w = 0; w < M;w++){
+                    S[length+2][0] = S[length+1][0]*B[w][0];
+                    S[length+2][1] = B[w][1];
+                    int y[18] = {0};
+                    Stat_Change(length+2,S,z,y);
+                    Rek(length+2,S,y);
+                }
+
+
+
+        }
+
+
+
+
+
+}
+
+        }
+        }
+        return;
+}
+
+
+
+int main(){
+
+    for(int LS = 5; LS > 1; LS--){
+    P[0] = 0;
+    P[1] = 0;
+    P[2] = 0;
+    P[3] = 0.01;
+    q = 0;
+    for(int i = 0; i < 30; i++){
+        Chances[0][i] = 0;
+        Chances[2][i] = 0;
+        Chances[1][i] = 0;
+    }
+
+    double S[k+4][2];
+    for(int i = 0; i < k+4;i++){
+        S[i][0] = 0;
+        S[i][1] = 0;
+    }
+
+    S[0][0] = 1;
+    S[0][1] = 0;
+
+
+    int z[18] = {10,1,4,0,76,1,0,0,1,0,0,3,3,5-LS,0,1,0,0,0};
+
+
+
+    Rek(0,S,z);
+
+    Probability[5-LS][0] = P[0];
+    Probability[5-LS][1] = P[1];
+    Probability[5-LS][2] = P[2];
+
+
+    printf("Win: %.10f, Loss: %.10f, Idk: %.10f \n",P[0],P[1],P[2]);
+
+    for(int i = 0; i < 30;i++){
+        printf("%d %.10f %.10f %.10f \n",i,Chances[0][i],Chances[1][i],Chances[2][i]);
+    }
+
+    printf("Done %d \n", LS );
+
+
+    }
+
+    for (int i = 0; i < 5;i++){
+    printf("LS: %d, Win: %.10f, Loss: %.10f, Idk: %.10f \n",5-i,Probability[i][0],Probability[i][1],Probability[i][2]);
+    }
+    return(0);
+}
